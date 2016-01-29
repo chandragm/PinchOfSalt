@@ -13,15 +13,12 @@ public class RealmDao {
 
 	public RealmDao(EventBus eventBus) {
 		this.eventBus = eventBus;
+		realm = Realm.getDefaultInstance();
 
 	}
 
 	public void addItem(JsonResponse jsonResponse) {
-		realm = Realm.getDefaultInstance();
-		realm.beginTransaction();
-		realm.copyToRealm(jsonResponse);
-		realm.commitTransaction();
-		eventBus.post(new ItemAddedEvent(jsonResponse));
+		realm.executeTransaction(realm1 -> realm1.copyToRealm(jsonResponse));
 	}
 
 //	private JsonResponse makeACopy(JsonResponse jsonResponse) {

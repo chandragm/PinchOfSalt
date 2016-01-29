@@ -6,6 +6,7 @@ import com.google.common.eventbus.EventBus;
 import dagger.Component;
 import in.chandramouligoru.pinchofsalt.api.RetrofitService;
 import in.chandramouligoru.pinchofsalt.injection.module.AppModule;
+import in.chandramouligoru.pinchofsalt.realm.RealmDao;
 import in.chandramouligoru.pinchofsalt.utils.JsonUtils;
 import in.chandramouligoru.pinchofsalt.utils.NetworkConnectionUtils;
 import in.chandramouligoru.pinchofsalt.view.activity.BaseActivity;
@@ -29,4 +30,6 @@ public interface AppComponent {
 	EventBus getEventBus();
 
 	JsonUtils getJsonUtils();
+
+	RealmDao getRealmDao();
 }

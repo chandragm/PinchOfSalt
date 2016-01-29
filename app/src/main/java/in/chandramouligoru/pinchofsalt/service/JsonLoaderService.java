@@ -1,8 +1,11 @@
 package in.chandramouligoru.pinchofsalt.service;
 
 import android.app.IntentService;
+import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.IBinder;
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import com.google.common.eventbus.EventBus;
@@ -12,9 +15,14 @@ import java.io.InputStream;
 
 import in.chandramouligoru.pinchofsalt.api.RetrofitService;
 import in.chandramouligoru.pinchofsalt.app.PinchOfSaltApplication;
-import in.chandramouligoru.pinchofsalt.events.LoadingJsonCompletedEvent;
+import in.chandramouligoru.pinchofsalt.events.ItemAddedEvent;
+import in.chandramouligoru.pinchofsalt.realm.RealmDao;
+import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 import in.chandramouligoru.pinchofsalt.utils.JsonUtils;
 import in.chandramouligoru.pinchofsalt.utils.NetworkConnectionUtils;
+import okhttp3.ResponseBody;
+import retrofit2.Response;
+import rx.Observable;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
 import rx.subscriptions.CompositeSubscription;
@@ -23,7 +31,7 @@ import rx.subscriptions.CompositeSubscription;
  * An {@link IntentService} subclass for handling asynchronous task requests in
  * a service on a separate handler thread.
  */
-public class JsonLoaderService extends IntentService {
+public class JsonLoaderService extends Service {
 	private static final String TAG = "JsonLoaderService";
 
 	public static final String ACTION_LOAD_JSON = "in.chandramouligoru.pinchofsalt.service.action.LOAD_JSON";
@@ -34,10 +42,7 @@ public class JsonLoaderService extends IntentService {
 	private NetworkConnectionUtils mNetworkConnectionUtils;
 	private EventBus eventBus;
 	private JsonUtils mJsonUtils;
-
-	public JsonLoaderService() {
-		super("JsonLoaderService");
-	}
+	private RealmDao realmDao;
 
 	/**
 	 * Starts this service to perform action Foo with the given parameters. If
@@ -53,7 +58,7 @@ public class JsonLoaderService extends IntentService {
 	}
 
 	@Override
-	protected void onHandleIntent(Intent intent) {
+	public int onStartCommand(Intent intent, int flags, int startId) {
 		if (intent != null) {
 			final String action = intent.getAction();
 			if (ACTION_LOAD_JSON.equals(action)) {
@@ -61,6 +66,7 @@ public class JsonLoaderService extends IntentService {
 				handleActionFoo(fileName);
 			}
 		}
+		return START_STICKY;
 	}
 
 	/**
@@ -79,40 +85,52 @@ public class JsonLoaderService extends IntentService {
 		mJsonUtils = ((PinchOfSaltApplication) getApplication()).getAppComponent().getJsonUtils();
 		mNetworkConnectionUtils = ((PinchOfSaltApplication) getApplication()).getAppComponent().getNetworkConnectionUtils();
 		eventBus = ((PinchOfSaltApplication) getApplication()).getAppComponent().getEventBus();
+		realmDao = ((PinchOfSaltApplication) getApplication()).getAppComponent().getRealmDao();
 	}
 
 	private void parseJsonStream(String jsonFileName) {
-		compositeSubscription.add(mRetrofitService.getJson(jsonFileName)
-				.map(response -> {
-					if (response != null)
-						return readLargeJson(response.byteStream());
-					return false;
-				})
-				.filter(aBoolean -> aBoolean)
-				.subscribe(new Subscriber<Boolean>() {
+		Observable.create(new Observable.OnSubscribe<JsonResponse>() {
+			@Override
+			public void call(Subscriber<? super JsonResponse> subscriber) {
+				try {
+					Response<ResponseBody> response = mRetrofitService.getJson().execute();
+					if (response != null && response.isSuccess()) {
+						readLargeJson(response.body().byteStream(), subscriber);
+					}
+				} catch (IOException e) {
+					subscriber.onError(e);
+				}
+			}
+		}).observeOn(Schedulers.io())
+				.subscribeOn(Schedulers.computation())
+				.subscribe(new Subscriber<JsonResponse>() {
 					@Override
 					public void onCompleted() {
 						Log.e(TAG, "successfully completed the fetch.");
+						stopSelf();
 					}
 
 					@Override
 					public void onError(Throwable e) {
 						e.printStackTrace();
 						Log.e(TAG, "Failed to fetch JSON file.");
+						stopSelf();
 					}
 
 					@Override
-					public void onNext(Boolean result) {
-						if (result)
-							eventBus.post(new LoadingJsonCompletedEvent());
+					public void onNext(JsonResponse jsonResponse) {
+						if (jsonResponse != null) {
+							realmDao.addItem(jsonResponse);
+							eventBus.post(new ItemAddedEvent(jsonResponse));
+						}
 					}
-				}));
+				});
 	}
 
-	private boolean readLargeJson(InputStream inputStream) {
+	private boolean readLargeJson(InputStream inputStream, Subscriber subscriber) {
 		boolean result = true;
 		try {
-			mJsonUtils.parseJson(inputStream);
+			mJsonUtils.parseJson(inputStream, subscriber);
 		} catch (IOException e) {
 			e.printStackTrace();
 			result = false;
@@ -126,5 +144,11 @@ public class JsonLoaderService extends IntentService {
 			compositeSubscription.unsubscribe();
 			compositeSubscription = null;
 		}
+	}
+
+	@Nullable
+	@Override
+	public IBinder onBind(Intent intent) {
+		return null;
 	}
 }

@@ -5,6 +5,7 @@ import android.util.Log;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.eventbus.EventBus;
 
@@ -15,9 +16,11 @@ import javax.inject.Inject;
 
 import in.chandramouligoru.pinchofsalt.realm.RealmDao;
 import in.chandramouligoru.pinchofsalt.response.JsonResponse;
+import rx.Subscriber;
 
 public class JsonUtils {
 	private static final String TAG = "JsonUtils";
+	int count = 0;
 
 	private ObjectMapper mapper = new ObjectMapper();
 	private JsonFactory jsonFactory;
@@ -29,7 +32,7 @@ public class JsonUtils {
 		this.realmDao = realmDao;
 	}
 
-	private void processJSONObject(JsonParser parser)
+	private void processJSONObject(JsonParser parser, Subscriber subscriber)
 			throws IOException {
 		while (!parser.isClosed()) {
 			JsonToken token = parser.nextToken();
@@ -41,15 +44,22 @@ public class JsonUtils {
 				Log.e(TAG, "Error. Expected a field name");
 				break;
 			}
-			JsonResponse item = mapper.readValue(parser, JsonResponse.class);
-			realmDao.addItem(item);
+			count++;
+			JsonNode node = parser.readValueAsTree();
+			JsonResponse jsonResponse = new JsonResponse();
+			jsonResponse.setTitle(node.get("title").textValue());
+			jsonResponse.setDescription(node.get("description").textValue());
+			jsonResponse.setImage(node.get("image").textValue());
+
+			subscriber.onNext(jsonResponse);
+			Log.e(TAG, " count = " + count);
 			token = parser.nextToken();
 			Log.e(TAG, " " + token);
-			processJSONValue(token, parser);
+			processJSONValue(token, parser, subscriber);
 		}
 	}
 
-	private void processJSONArray(JsonParser parser)
+	private void processJSONArray(JsonParser parser, Subscriber subscriber)
 			throws IOException {
 		while (!parser.isClosed()) {
 			JsonToken token = parser.nextToken();
@@ -57,25 +67,26 @@ public class JsonUtils {
 				// The end of the array has been reached
 				break;
 			}
-			processJSONValue(token, parser);
+			processJSONValue(token, parser, subscriber);
 		}
 	}
 
-	private void processJSONValue(JsonToken token, JsonParser parser)
+	private void processJSONValue(JsonToken token, JsonParser parser, Subscriber subscriber)
 			throws IOException {
 		if (JsonToken.START_OBJECT.equals(token)) {
-			processJSONObject(parser);
+			processJSONObject(parser, subscriber);
 		} else if (JsonToken.START_ARRAY.equals(token)) {
-			processJSONArray(parser);
+			processJSONArray(parser, subscriber);
 		} else {
 			//End of parsing
 			parser.close();
+			subscriber.onCompleted();
 		}
 	}
 
 
-	public void parseJson(InputStream inputStream) throws IOException {
-		if(inputStream == null)
+	public void parseJson(InputStream inputStream, Subscriber subscriber) throws IOException {
+		if (inputStream == null)
 			return;
 		JsonParser parser = jsonFactory.createParser(inputStream);
 
@@ -87,7 +98,7 @@ public class JsonUtils {
 				break;
 
 			// Process the element
-			processJSONValue(token, parser);
+			processJSONValue(token, parser, subscriber);
 		}
 	}
 }
