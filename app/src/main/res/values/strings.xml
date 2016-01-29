@@ -3,4 +3,6 @@
     <string name="title_item_detail">Item Detail</string>
     <string name="no_internet">No Network. Try after some time.</string>
     <string name="welcome_salt">It\'s all about salt</string>
+    <string name="load_completed">Json processing completed.</string>
+    <string name="load_failed">Json loading failed.</string>
 </resources>

@@ -2,19 +2,34 @@ package in.chandramouligoru.pinchofsalt.utils;
 
 import android.util.Log;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.eventbus.EventBus;
 
 import java.io.IOException;
+import java.io.InputStream;
 
+import javax.inject.Inject;
+
+import in.chandramouligoru.pinchofsalt.realm.RealmDao;
 import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 
 public class JsonUtils {
 	private static final String TAG = "JsonUtils";
-	private static ObjectMapper mapper = new ObjectMapper();
 
-	public static void processJSONObject(JsonParser parser)
+	private ObjectMapper mapper = new ObjectMapper();
+	private JsonFactory jsonFactory;
+	private RealmDao realmDao;
+
+	@Inject
+	public JsonUtils(JsonFactory jsonFactory, RealmDao realmDao) {
+		this.jsonFactory = jsonFactory;
+		this.realmDao = realmDao;
+	}
+
+	private void processJSONObject(JsonParser parser)
 			throws IOException {
 		while (!parser.isClosed()) {
 			JsonToken token = parser.nextToken();
@@ -26,14 +41,15 @@ public class JsonUtils {
 				Log.e(TAG, "Error. Expected a field name");
 				break;
 			}
-			Log.e(TAG, "Field: " + mapper.readValue(parser, JsonResponse.class));
+			JsonResponse item = mapper.readValue(parser, JsonResponse.class);
+			realmDao.addItem(item);
 			token = parser.nextToken();
 			Log.e(TAG, " " + token);
 			processJSONValue(token, parser);
 		}
 	}
 
-	public static void processJSONArray(JsonParser parser)
+	private void processJSONArray(JsonParser parser)
 			throws IOException {
 		while (!parser.isClosed()) {
 			JsonToken token = parser.nextToken();
@@ -45,7 +61,7 @@ public class JsonUtils {
 		}
 	}
 
-	private static void processJSONValue(JsonToken token, JsonParser parser)
+	private void processJSONValue(JsonToken token, JsonParser parser)
 			throws IOException {
 		if (JsonToken.START_OBJECT.equals(token)) {
 			processJSONObject(parser);
@@ -58,7 +74,11 @@ public class JsonUtils {
 	}
 
 
-	public static void parseJson(JsonParser parser) throws IOException {
+	public void parseJson(InputStream inputStream) throws IOException {
+		if(inputStream == null)
+			return;
+		JsonParser parser = jsonFactory.createParser(inputStream);
+
 		while (!parser.isClosed()) {
 			// read the next element
 			JsonToken token = parser.nextToken();

@@ -17,7 +17,6 @@ import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemDetailActivity;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemListActivity;
 import io.realm.Realm;
-import io.realm.RealmConfiguration;
 
 /**
  * A fragment representing a single Item detail screen.
@@ -84,8 +83,7 @@ public class ItemDetailFragment extends Fragment {
 	}
 
 	private void loadSelectedItem(String itemId) {
-		RealmConfiguration realmConfiguration = new RealmConfiguration.Builder(getActivity()).build();
-		Realm realm = Realm.getInstance(realmConfiguration);
+		Realm realm = Realm.getDefaultInstance();
 		mItem = realm.where(JsonResponse.class).equalTo("title", itemId).findFirst();
 		realm.close();
 	}

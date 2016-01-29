@@ -1,32 +1,23 @@
 package in.chandramouligoru.pinchofsalt.view.activity;
 
 import android.os.Bundle;
-import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 
-import com.fasterxml.jackson.core.JsonFactory;
-
-import java.io.IOException;
-import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
-
-import javax.inject.Inject;
 
 import in.chandramouligoru.pinchofsalt.BuildConfig;
 import in.chandramouligoru.pinchofsalt.R;
-import in.chandramouligoru.pinchofsalt.api.RetrofitService;
 import in.chandramouligoru.pinchofsalt.app.PinchOfSaltApplication;
+import in.chandramouligoru.pinchofsalt.events.ItemAddedEvent;
+import in.chandramouligoru.pinchofsalt.events.LoadingJsonCompletedEvent;
+import in.chandramouligoru.pinchofsalt.events.LoadingJsonFailedEvent;
 import in.chandramouligoru.pinchofsalt.response.JsonResponse;
+import in.chandramouligoru.pinchofsalt.service.JsonLoaderService;
 import in.chandramouligoru.pinchofsalt.view.adapter.ItemRecyclerViewAdapter;
 import io.realm.Realm;
-import io.realm.RealmConfiguration;
 import io.realm.RealmResults;
-import okhttp3.ResponseBody;
-import rx.Subscriber;
-import rx.android.schedulers.AndroidSchedulers;
-import rx.schedulers.Schedulers;
 
 /**
  * An activity representing a list of Items. This activity
@@ -41,29 +32,33 @@ public class ItemListActivity extends BaseActivity {
 	private static final String TAG = "ItemListActivity";
 
 	private Realm realm;
-
-	@Inject
-	protected JsonFactory mJsonFactory;
-
-	@Inject
-	protected RetrofitService mRetrofitService;
-
+	private RealmResults<JsonResponse> mRealmResults;
 	private RecyclerView mRecyclerView;
+	private ItemRecyclerViewAdapter mAdapter;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_item_list);
 		((PinchOfSaltApplication) getApplication()).getAppComponent().initialize(this);
-
-		RealmConfiguration realmConfiguration = new RealmConfiguration.Builder(this).build();
-		realm = Realm.getInstance(realmConfiguration);
+		realm = Realm.getDefaultInstance();
 
 		initUI();
-		if (!isNetworkAvailable())
-			showNoNetworkError();
-		else
-			loadData();
+		setupRecyclerView(null);
+	}
+
+	private void checkRealmDb() {
+		mRealmResults = realm.where(JsonResponse.class).findAllAsync();
+		mRealmResults.addChangeListener(() -> {
+			if (mRealmResults != null && mRealmResults.size() > 0)
+				ItemListActivity.this.setupRecyclerView(mRealmResults);
+			else {
+				if (!isNetworkAvailable())
+					showNoNetworkError();
+				else
+					loadData();
+			}
+		});
 	}
 
 	private void initUI() {
@@ -75,76 +70,37 @@ public class ItemListActivity extends BaseActivity {
 		assert mRecyclerView != null;
 	}
 
-	private void setupRecyclerView(@NonNull RecyclerView recyclerView, List<JsonResponse> items) {
-		recyclerView.setAdapter(new ItemRecyclerViewAdapter(items, (findViewById(R.id.item_detail_container) != null), getSupportFragmentManager()));
+	public void onEvent(ItemAddedEvent itemAddedEvent) {
+		mAdapter.addData(itemAddedEvent.getJsonResponse());
+	}
+
+	public void onEvent(LoadingJsonCompletedEvent loadingJsonCompletedEvent) {
+		showLoadCompletion();
+	}
+
+	public void onEvent(LoadingJsonFailedEvent loadingJsonFailedEvent) {
+		showLoadFailed();
+	}
+
+	@Override
+	protected void onResume() {
+		super.onResume();
+		checkRealmDb();
+	}
+
+	@Override
+	protected void onPause() {
+		super.onPause();
+		mRealmResults.removeChangeListeners();
+	}
+
+	private void setupRecyclerView(List<JsonResponse> items) {
+		if (mAdapter == null)
+			mAdapter = new ItemRecyclerViewAdapter(items == null ? new ArrayList<>() : items, (findViewById(R.id.item_detail_container) != null), getSupportFragmentManager());
+		mRecyclerView.setAdapter(mAdapter);
 	}
 
 	private void loadData() {
-		compositeSubscription.add(mRetrofitService.getJson(BuildConfig.FILE_NAME)
-				.subscribeOn(Schedulers.io())
-				.observeOn(AndroidSchedulers.mainThread())
-				.map((ResponseBody response) -> {
-					if (response != null)
-						return response.byteStream();
-					return null;
-				})
-				.map((InputStream stream) -> {
-					try {
-						return loadJsonFromStream(stream);
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					return null;
-				})
-				.map((Boolean aBoolean) -> {
-					if (aBoolean) {
-						return realm.where(JsonResponse.class).findAllAsync();
-					}
-					return null;
-				})
-				.filter((RealmResults<JsonResponse> jsonResponses) -> {
-					if (jsonResponses != null)
-						return jsonResponses.load();
-					else
-						return false;
-				})
-				.map((RealmResults<JsonResponse> jsonResponses) -> jsonResponses.subList(0, jsonResponses.size()))
-				.subscribe(new Subscriber<List<JsonResponse>>() {
-					@Override
-					public void onCompleted() {
-						Log.e(TAG, "successfully completed the fetch.");
-					}
-
-					@Override
-					public void onError(Throwable e) {
-						e.printStackTrace();
-						Log.e(TAG, "Failed to fetch JSON file.");
-					}
-
-					@Override
-					public void onNext(List<JsonResponse> jsonResponses) {
-						if (jsonResponses != null && jsonResponses.size() > 0)
-							setupRecyclerView(mRecyclerView, jsonResponses);
-					}
-				}));
-	}
-
-	private boolean loadJsonFromStream(InputStream stream) throws IOException {
-		boolean result = false;
-		// Open a transaction to store items into the realm
-		realm.beginTransaction();
-		try {
-			realm.createAllFromJson(JsonResponse.class, stream);
-			realm.commitTransaction();
-			result = true;
-		} catch (IOException e) {
-			// Remember to cancel the transaction if anything goes wrong.
-			realm.cancelTransaction();
-		} finally {
-			if (stream != null) {
-				stream.close();
-			}
-		}
-		return result;
+		JsonLoaderService.loadJsonData(this, BuildConfig.FILE_NAME);
 	}
 }

@@ -1,8 +1,8 @@
 package in.chandramouligoru.pinchofsalt.view.activity;
 
+import android.os.Bundle;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 
 import javax.inject.Inject;
 
@@ -41,5 +41,13 @@ public class BaseActivity extends AppCompatActivity {
 
 	public void showNoNetworkError() {
 		Snackbar.make(findViewById(android.R.id.content), getString(R.string.no_internet), Snackbar.LENGTH_LONG).show();
+	}
+
+	public void showLoadCompletion() {
+		Snackbar.make(findViewById(android.R.id.content), getString(R.string.load_completed), Snackbar.LENGTH_LONG).show();
+	}
+
+	public void showLoadFailed() {
+		Snackbar.make(findViewById(android.R.id.content), getString(R.string.load_failed), Snackbar.LENGTH_LONG).show();
 	}
 }

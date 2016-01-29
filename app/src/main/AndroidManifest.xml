@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="in.chandramouligoru.pinchofsalt">
+    package="in.chandramouligoru.pinchofsalt" >
 
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"></uses-permission>
-    <uses-permission android:name="android.permission.INTERNET"></uses-permission>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".app.PinchOfSaltApplication"
@@ -11,12 +11,12 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme" >
         <activity
             android:name=".view.activity.ItemListActivity"
             android:label="@string/app_name"
-            android:theme="@style/AppTheme.NoActionBar"></activity>
-        <activity android:name=".view.activity.SplashActivity">
+            android:theme="@style/AppTheme.NoActionBar" />
+        <activity android:name=".view.activity.SplashActivity" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -27,11 +27,16 @@
             android:name=".view.activity.ItemDetailActivity"
             android:label="@string/title_item_detail"
             android:parentActivityName=".view.activity.ItemListActivity"
-            android:theme="@style/AppTheme.NoActionBar">
+            android:theme="@style/AppTheme.NoActionBar" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".view.activity.ItemListActivity" />
         </activity>
+
+        <service
+            android:name=".service.JsonLoaderService"
+            android:exported="false" >
+        </service>
     </application>
 
 </manifest>

@@ -17,9 +17,7 @@ import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemDetailActivity;
 import in.chandramouligoru.pinchofsalt.view.fragment.ItemDetailFragment;
 
-/**
- * Created by cgoru on 28/01/16.
- */
+
 public class ItemRecyclerViewAdapter
 		extends RecyclerView.Adapter<ItemRecyclerViewAdapter.ViewHolder> {
 
@@ -68,6 +66,16 @@ public class ItemRecyclerViewAdapter
 	@Override
 	public int getItemCount() {
 		return mValues.size();
+	}
+
+	public void addData(JsonResponse jsonResponse) {
+		mValues.add(jsonResponse);
+		notifyDataSetChanged();
+	}
+
+	public void addData(List<JsonResponse> jsonResponse) {
+		mValues.addAll(jsonResponse);
+		notifyDataSetChanged();
 	}
 
 	public class ViewHolder extends RecyclerView.ViewHolder {
