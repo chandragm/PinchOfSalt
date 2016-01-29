@@ -1,17 +1,33 @@
 package in.chandramouligoru.pinchofsalt.response;
 
-public class JsonResponse {
-	public String title;
-	public String description;
+import io.realm.RealmObject;
 
-	@Override
-	public String toString() {
-		return "JsonResponse{" +
-				"title='" + title + '\'' +
-				", description='" + description + '\'' +
-				", image='" + image + '\'' +
-				'}';
+public class JsonResponse extends RealmObject {
+	private String title;
+	private String description;
+	private String image;
+
+	public String getDescription() {
+		return description;
 	}
 
-	public String image;
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
+	}
+
+	public String getImage() {
+		return image;
+	}
+
+	public void setImage(String image) {
+		this.image = image;
+	}
 }

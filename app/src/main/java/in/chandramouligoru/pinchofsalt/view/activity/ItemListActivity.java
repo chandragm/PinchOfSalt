@@ -5,15 +5,12 @@ import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -21,10 +18,11 @@ import in.chandramouligoru.pinchofsalt.BuildConfig;
 import in.chandramouligoru.pinchofsalt.R;
 import in.chandramouligoru.pinchofsalt.api.RetrofitService;
 import in.chandramouligoru.pinchofsalt.app.PinchOfSaltApplication;
-import in.chandramouligoru.pinchofsalt.dummy.DummyContent;
 import in.chandramouligoru.pinchofsalt.response.JsonResponse;
-import in.chandramouligoru.pinchofsalt.utils.JsonUtils;
 import in.chandramouligoru.pinchofsalt.view.adapter.ItemRecyclerViewAdapter;
+import io.realm.Realm;
+import io.realm.RealmConfiguration;
+import io.realm.RealmResults;
 import okhttp3.ResponseBody;
 import rx.Subscriber;
 import rx.android.schedulers.AndroidSchedulers;
@@ -42,17 +40,24 @@ public class ItemListActivity extends BaseActivity {
 
 	private static final String TAG = "ItemListActivity";
 
+	private Realm realm;
+
 	@Inject
 	protected JsonFactory mJsonFactory;
 
 	@Inject
 	protected RetrofitService mRetrofitService;
 
+	private RecyclerView mRecyclerView;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_item_list);
 		((PinchOfSaltApplication) getApplication()).getAppComponent().initialize(this);
+
+		RealmConfiguration realmConfiguration = new RealmConfiguration.Builder(this).build();
+		realm = Realm.getInstance(realmConfiguration);
 
 		initUI();
 		if (!isNetworkAvailable())
@@ -66,13 +71,12 @@ public class ItemListActivity extends BaseActivity {
 		setSupportActionBar(toolbar);
 		toolbar.setTitle(getTitle());
 
-		View recyclerView = findViewById(R.id.item_list);
-		assert recyclerView != null;
-		setupRecyclerView((RecyclerView) recyclerView);
+		mRecyclerView = (RecyclerView) findViewById(R.id.item_list);
+		assert mRecyclerView != null;
 	}
 
-	private void setupRecyclerView(@NonNull RecyclerView recyclerView) {
-		recyclerView.setAdapter(new ItemRecyclerViewAdapter(DummyContent.ITEMS, (findViewById(R.id.item_detail_container) != null), getSupportFragmentManager()));
+	private void setupRecyclerView(@NonNull RecyclerView recyclerView, List<JsonResponse> items) {
+		recyclerView.setAdapter(new ItemRecyclerViewAdapter(items, (findViewById(R.id.item_detail_container) != null), getSupportFragmentManager()));
 	}
 
 	private void loadData() {
@@ -81,18 +85,31 @@ public class ItemListActivity extends BaseActivity {
 				.observeOn(AndroidSchedulers.mainThread())
 				.map((ResponseBody response) -> {
 					if (response != null)
-						try {
-							return mJsonFactory.createParser(response.byteStream());
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
+						return response.byteStream();
 					return null;
 				})
-				.map(jsonParser -> {
-					readLargeJson(jsonParser);
-					return new JsonResponse();
+				.map((InputStream stream) -> {
+					try {
+						return loadJsonFromStream(stream);
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					return null;
 				})
-				.subscribe(new Subscriber<JsonResponse>() {
+				.map((Boolean aBoolean) -> {
+					if (aBoolean) {
+						return realm.where(JsonResponse.class).findAllAsync();
+					}
+					return null;
+				})
+				.filter((RealmResults<JsonResponse> jsonResponses) -> {
+					if (jsonResponses != null)
+						return jsonResponses.load();
+					else
+						return false;
+				})
+				.map((RealmResults<JsonResponse> jsonResponses) -> jsonResponses.subList(0, jsonResponses.size()))
+				.subscribe(new Subscriber<List<JsonResponse>>() {
 					@Override
 					public void onCompleted() {
 						Log.e(TAG, "successfully completed the fetch.");
@@ -105,61 +122,28 @@ public class ItemListActivity extends BaseActivity {
 					}
 
 					@Override
-					public void onNext(JsonResponse result) {
-//						Log.e(TAG, "title: " + result.title);
-//						Log.e(TAG, "description: " + result.description);
-//						Log.e(TAG, "image: " + result.image);
+					public void onNext(List<JsonResponse> jsonResponses) {
+						if (jsonResponses != null && jsonResponses.size() > 0)
+							setupRecyclerView(mRecyclerView, jsonResponses);
 					}
 				}));
 	}
 
-	int count = 0;
-
-	private void readLargeJson(JsonParser jp) {
+	private boolean loadJsonFromStream(InputStream stream) throws IOException {
+		boolean result = false;
+		// Open a transaction to store items into the realm
+		realm.beginTransaction();
 		try {
-			JsonUtils.parseJson(jp);
+			realm.createAllFromJson(JsonResponse.class, stream);
+			realm.commitTransaction();
+			result = true;
 		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-
-	private JsonResponse parseJsonStream(JsonParser jp) {
-		JsonToken current;
-		JsonResponse result = null;
-		try {
-			current = jp.nextToken();
-			if (current != JsonToken.START_ARRAY) {
-				Log.e(TAG, "Error: root should be an array: quiting.");
-				return null;
+			// Remember to cancel the transaction if anything goes wrong.
+			realm.cancelTransaction();
+		} finally {
+			if (stream != null) {
+				stream.close();
 			}
-			while ((current = jp.nextToken()) != JsonToken.END_ARRAY) {
-				if (current == JsonToken.START_OBJECT) {
-					while ((current = jp.nextToken()) != JsonToken.END_OBJECT) {
-						count++;
-						// read the record into a tree model,
-						// this moves the parsing position to the end of it
-						JsonNode node = jp.readValueAsTree();
-						// And now we have random access to everything in the object
-						result = new JsonResponse();
-						result.image = node.get("image").textValue();
-						result.description = node.get("description").textValue();
-						result.title = node.get("title").textValue();
-
-						Log.e(TAG, "count = "+ count);
-						Log.e(TAG, "current = "+ current);
-					}
-				} else {
-					if(current == JsonToken.END_ARRAY)
-						break;
-					System.out.println("Error: records should be an object: skipping.");
-					jp.skipChildren();
-				}
-			}
-		} catch (JsonParseException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
 		return result;
 	}

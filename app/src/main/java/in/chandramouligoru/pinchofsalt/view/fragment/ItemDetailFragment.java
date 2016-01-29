@@ -7,12 +7,17 @@ import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.bumptech.glide.Glide;
+
 import in.chandramouligoru.pinchofsalt.R;
-import in.chandramouligoru.pinchofsalt.dummy.DummyContent;
+import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemDetailActivity;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemListActivity;
+import io.realm.Realm;
+import io.realm.RealmConfiguration;
 
 /**
  * A fragment representing a single Item detail screen.
@@ -30,7 +35,7 @@ public class ItemDetailFragment extends Fragment {
 	/**
 	 * The dummy content this fragment is presenting.
 	 */
-	private DummyContent.DummyItem mItem;
+	private JsonResponse mItem;
 
 	/**
 	 * Mandatory empty constructor for the fragment manager to instantiate the
@@ -47,12 +52,12 @@ public class ItemDetailFragment extends Fragment {
 			// Load the dummy content specified by the fragment
 			// arguments. In a real-world scenario, use a Loader
 			// to load content from a content provider.
-			mItem = DummyContent.ITEM_MAP.get(getArguments().getString(ARG_ITEM_ID));
+			loadSelectedItem(getArguments().getString(ARG_ITEM_ID));
 
 			Activity activity = this.getActivity();
 			CollapsingToolbarLayout appBarLayout = (CollapsingToolbarLayout) activity.findViewById(R.id.toolbar_layout);
 			if (appBarLayout != null) {
-				appBarLayout.setTitle(mItem.content);
+				appBarLayout.setTitle(mItem.getTitle());
 			}
 		}
 	}
@@ -62,11 +67,26 @@ public class ItemDetailFragment extends Fragment {
 	                         Bundle savedInstanceState) {
 		View rootView = inflater.inflate(R.layout.item_detail, container, false);
 
-		// Show the dummy content as text in a TextView.
 		if (mItem != null) {
-			((TextView) rootView.findViewById(R.id.item_detail)).setText(mItem.details);
+			((TextView) rootView.findViewById(R.id.id)).setText(mItem.getTitle());
+			((TextView) rootView.findViewById(R.id.content)).setText(mItem.getDescription());
+			ImageView imageView = (ImageView) rootView.findViewById(R.id.image);
+
+
+			Glide.with(getActivity())
+					.load(mItem.getImage())
+					.centerCrop()
+					.crossFade()
+					.into(imageView);
 		}
 
 		return rootView;
+	}
+
+	private void loadSelectedItem(String itemId) {
+		RealmConfiguration realmConfiguration = new RealmConfiguration.Builder(getActivity()).build();
+		Realm realm = Realm.getInstance(realmConfiguration);
+		mItem = realm.where(JsonResponse.class).equalTo("title", itemId).findFirst();
+		realm.close();
 	}
 }

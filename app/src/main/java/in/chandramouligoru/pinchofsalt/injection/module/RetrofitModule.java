@@ -3,8 +3,6 @@ package in.chandramouligoru.pinchofsalt.injection.module;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.MappingJsonFactory;
 
-import java.io.IOException;
-
 import dagger.Module;
 import dagger.Provides;
 import in.chandramouligoru.pinchofsalt.BuildConfig;
@@ -14,7 +12,6 @@ import in.chandramouligoru.pinchofsalt.utils.NetworkConnectionUtils;
 import okhttp3.Cache;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.logging.HttpLoggingInterceptor;
 import retrofit2.Retrofit;

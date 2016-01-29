@@ -13,7 +13,7 @@ import android.widget.TextView;
 import java.util.List;
 
 import in.chandramouligoru.pinchofsalt.R;
-import in.chandramouligoru.pinchofsalt.dummy.DummyContent;
+import in.chandramouligoru.pinchofsalt.response.JsonResponse;
 import in.chandramouligoru.pinchofsalt.view.activity.ItemDetailActivity;
 import in.chandramouligoru.pinchofsalt.view.fragment.ItemDetailFragment;
 
@@ -23,11 +23,11 @@ import in.chandramouligoru.pinchofsalt.view.fragment.ItemDetailFragment;
 public class ItemRecyclerViewAdapter
 		extends RecyclerView.Adapter<ItemRecyclerViewAdapter.ViewHolder> {
 
-	private final List<DummyContent.DummyItem> mValues;
+	private final List<JsonResponse> mValues;
 	private boolean mTwoPane;
 	private FragmentManager mSupportFragmentManager;
 
-	public ItemRecyclerViewAdapter(List<DummyContent.DummyItem> items, boolean isTwoPane, FragmentManager fragmentManager) {
+	public ItemRecyclerViewAdapter(List<JsonResponse> items, boolean isTwoPane, FragmentManager fragmentManager) {
 		mValues = items;
 		mTwoPane = isTwoPane;
 		mSupportFragmentManager = fragmentManager;
@@ -43,27 +43,24 @@ public class ItemRecyclerViewAdapter
 	@Override
 	public void onBindViewHolder(final ViewHolder holder, int position) {
 		holder.mItem = mValues.get(position);
-		holder.mIdView.setText(mValues.get(position).id);
-		holder.mContentView.setText(mValues.get(position).content);
+		holder.mIdView.setText(mValues.get(position).getTitle());
+		holder.mContentView.setText(mValues.get(position).getDescription());
 
-		holder.mView.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				if (mTwoPane) {
-					Bundle arguments = new Bundle();
-					arguments.putString(ItemDetailFragment.ARG_ITEM_ID, holder.mItem.id);
-					ItemDetailFragment fragment = new ItemDetailFragment();
-					fragment.setArguments(arguments);
-					mSupportFragmentManager.beginTransaction()
-							.replace(R.id.item_detail_container, fragment)
-							.commit();
-				} else {
-					Context context = v.getContext();
-					Intent intent = new Intent(context, ItemDetailActivity.class);
-					intent.putExtra(ItemDetailFragment.ARG_ITEM_ID, holder.mItem.id);
+		holder.mView.setOnClickListener((View v) -> {
+			if (mTwoPane) {
+				Bundle arguments = new Bundle();
+				arguments.putString(ItemDetailFragment.ARG_ITEM_ID, holder.mItem.getTitle());
+				ItemDetailFragment fragment = new ItemDetailFragment();
+				fragment.setArguments(arguments);
+				mSupportFragmentManager.beginTransaction()
+						.replace(R.id.item_detail_container, fragment)
+						.commit();
+			} else {
+				Context context = v.getContext();
+				Intent intent = new Intent(context, ItemDetailActivity.class);
+				intent.putExtra(ItemDetailFragment.ARG_ITEM_ID, holder.mItem.getTitle());
 
-					context.startActivity(intent);
-				}
+				context.startActivity(intent);
 			}
 		});
 	}
@@ -77,7 +74,7 @@ public class ItemRecyclerViewAdapter
 		public final View mView;
 		public final TextView mIdView;
 		public final TextView mContentView;
-		public DummyContent.DummyItem mItem;
+		public JsonResponse mItem;
 
 		public ViewHolder(View view) {
 			super(view);
